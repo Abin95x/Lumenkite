@@ -1,0 +1,8 @@
+# Copy this file to local.properties (git-ignored) and fill in your values.
+
+# Path to your Android SDK
+sdk.dir=/path/to/Android/Sdk
+
+# Telegram API credentials from https://my.telegram.org -> API development tools.
+telegram.apiId=
+telegram.apiHash=
