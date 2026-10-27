@@ -32,6 +32,7 @@ class App : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate()
         BackupScheduler.createChannel(this)
+        com.skyroll.app.explore.ExploreScheduler.createChannel(this)
         appScope.launch { vault.init() }
         telegram.start()
         BackupScheduler.schedule(this)

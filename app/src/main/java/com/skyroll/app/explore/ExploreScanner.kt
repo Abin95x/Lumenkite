@@ -1,5 +1,7 @@
 package com.skyroll.app.explore
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
@@ -28,7 +30,6 @@ import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.skyroll.app.App
-import com.skyroll.app.backup.BackupScheduler
 import com.skyroll.app.data.MediaItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -237,19 +238,30 @@ class ExploreWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
     private suspend fun promote(done: Int, total: Int) {
         if (total < 20) return // small catch-up scans don't need a notification
-        val n = NotificationCompat.Builder(applicationContext, BackupScheduler.CHANNEL_ID)
+        val n = NotificationCompat.Builder(applicationContext, ExploreScheduler.CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_search)
             .setContentTitle("Organizing your photos · $done/$total")
             .setContentText("Finding people, places and things — on your phone")
             .setOnlyAlertOnce(true)
             .setOngoing(true)
             .setProgress(total, done, false)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", WorkManager.getInstance(applicationContext).createCancelPendingIntent(id))
             .build()
         runCatching { setForeground(ForegroundInfo(43, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)) }
     }
 }
 
 object ExploreScheduler {
+    const val CHANNEL_ID = "organize"
+
+    fun createChannel(context: Context) {
+        context.getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "Organizing photos", NotificationManager.IMPORTANCE_LOW).apply {
+                description = "Shows progress while photos are sorted into people, places and things"
+            }
+        )
+    }
+
     fun schedule(context: Context) {
         val wm = WorkManager.getInstance(context)
         wm.enqueueUniquePeriodicWork(
