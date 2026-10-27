@@ -8,6 +8,9 @@
 ![Platform: Android 10+](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/abin95x)
+[![Latest release](https://img.shields.io/github/v/release/Abin95x/Lumenkite?label=Latest%20release)](https://github.com/Abin95x/Lumenkite/releases/latest)
+
+<a href="https://github.com/Abin95x/Lumenkite/releases/latest/download/Lumenkite.apk"><img src="https://img.shields.io/badge/Download-APK-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Download APK"></a>
 
 </div>
 
@@ -70,8 +73,10 @@ There's no Lumenkite server and no Lumenkite account.
 
 You **don't** need a Telegram API key. Released APKs already include one.
 
-1. Download the latest APK from [Releases](../../releases) and install it.
+1. **[Download the latest APK](https://github.com/Abin95x/Lumenkite/releases/latest/download/Lumenkite.apk)** and open it to install.
+   Older versions are on the [Releases](https://github.com/Abin95x/Lumenkite/releases) page.
    Requires Android 10 or newer on a 64-bit ARM phone (almost all phones from the last few years).
+   If Android blocks the install, allow "Install unknown apps" for your browser or file manager.
 2. Allow access to photos and videos.
 3. Open the **Backup** tab and enter the phone number of your Telegram account.
 4. Enter the login code Telegram sends you, and your 2-step verification password if you have one.
@@ -157,8 +162,10 @@ Only the maintainer needs these steps.
    APK, so users don't need their own.
 2. Sign the release with a real release keystore, not the debug key. **Back the keystore up:** if it's
    lost, users can't install updates over the old version. The Play Store doesn't accept debug-signed apps.
-3. Build with `./gradlew assembleRelease` and attach `app/build/outputs/apk/release/app-release.apk` to a
-   GitHub Release (or upload it to the Play Store).
+3. Build with `./gradlew assembleRelease`, rename `app/build/outputs/apk/release/app-release.apk` to
+   **`Lumenkite.apk`** and attach it to a GitHub Release (or upload it to the Play Store).
+   The README's download button links to `releases/latest/download/Lumenkite.apk`, so the file name
+   must stay exactly `Lumenkite.apk`.
 
 Things to know:
 
