@@ -79,6 +79,9 @@ There's no Lumenkite server and no Lumenkite account.
 - **Things:** finds photos by what's in them (beach, dog, food…)
 - **Text:** search for words that appear in your photos
 - **Places:** browse by city, using the photo's location
+- Each photo is scanned once. The first scan covers your whole library, then only new photos are scanned
+  (shortly after you open the app, and every 12 hours while charging).
+- Shows a progress notification with a Stop button while it scans
 
 ## Install and use
 
@@ -131,6 +134,11 @@ Yes. Log into the same Telegram account. Both phones read and add to the same ch
 **Can Telegram see my photos?**
 Files in channels are stored on Telegram's servers like any other cloud chat. They are not end-to-end
 encrypted. Only your account can access the channel.
+
+**Why does my phone say Lumenkite is active in the background?**
+While a backup or an Explore scan runs, Android requires the app to run a foreground service with a
+notification. Some phones, like Samsung's, also list it under "Active apps" or "Check background activity".
+It stops by itself when the work is done. To stop it early, tap **Stop** on the notification.
 
 **Can my account get banned for this?**
 Lumenkite uses Telegram's official library and respects its rate limits. Telegram's terms don't forbid
