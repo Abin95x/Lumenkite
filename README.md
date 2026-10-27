@@ -43,10 +43,11 @@ There's no Lumenkite server and no Lumenkite account.
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/welcome.jpg" width="23%" alt="Welcome screen asking for photo access">
-  <img src="docs/screenshots/photos.jpg" width="23%" alt="Photos tab">
-  <img src="docs/screenshots/explore.jpg" width="23%" alt="Explore tab with on-device search">
-  <img src="docs/screenshots/backup.jpg" width="23%" alt="Backup tab with Telegram backup status and settings">
+  <img src="docs/screenshots/welcome.jpg" width="19%" alt="Welcome screen asking for photo access">
+  <img src="docs/screenshots/photos.jpg" width="19%" alt="Photos tab">
+  <img src="docs/screenshots/albums.jpg" width="19%" alt="Albums tab with Vault, Favorites, Backed up and Telegram only">
+  <img src="docs/screenshots/explore.jpg" width="19%" alt="Explore tab with on-device search">
+  <img src="docs/screenshots/backup.jpg" width="19%" alt="Backup tab with Telegram backup status and settings">
 </p>
 
 ## Features
