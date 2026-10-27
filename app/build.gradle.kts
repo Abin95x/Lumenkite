@@ -82,6 +82,7 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation("com.google.crypto.tink:tink-android:1.15.0")
 
     // Explore: free on-device models. Google Play services supplies the ML Kit models
     // (downloaded once in the background), which keeps the app ~30 MB smaller.

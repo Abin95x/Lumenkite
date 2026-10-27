@@ -272,7 +272,7 @@ class BackupWorker(context: Context, params: WorkerParameters) : CoroutineWorker
 
     private fun copyToCache(item: MediaItem): File {
         val dir = File(applicationContext.cacheDir, "upload").apply { mkdirs() }
-        val out = File(dir, item.name)
+        val out = File(dir, com.skyroll.app.security.Secrets.safeFileName(item.name, "upload"))
         applicationContext.contentResolver.openInputStream(item.uri!!)!!.use { input ->
             out.outputStream().use { input.copyTo(it, 1 shl 16) }
         }

@@ -1,6 +1,28 @@
 package com.skyroll.app.ui.screens
 
 import android.net.Uri
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -27,6 +49,8 @@ import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.Share
@@ -81,6 +105,7 @@ fun ViewerScreen(
     onBackUp: (MediaItem) -> Unit,
     onBack: () -> Unit,
     vault: Boolean = false,
+    favoriteKeys: Set<String> = emptySet(),
 ) {
     if (vault) SecureWindow()
     if (items.isEmpty()) {
@@ -93,11 +118,68 @@ fun ViewerScreen(
     var confirmDelete by remember { mutableStateOf(false) }
     val current = items[pager.currentPage.coerceIn(0, items.lastIndex)]
 
+    // The player of the video on screen, so the controls can live with the rest of the chrome.
+    var activePlayer by remember { mutableStateOf<ExoPlayer?>(null) }
+    val playback = rememberPlayback(activePlayer)
+    val videoControls = current.isVideo && activePlayer != null
+    var scrubbing by remember { mutableStateOf(false) }
+    var poke by remember { mutableIntStateOf(0) }
+
+    // While a video plays, hide the controls after a few seconds without interaction.
+    LaunchedEffect(chrome, videoControls, playback.isPlaying, scrubbing, poke) {
+        if (chrome && videoControls && playback.isPlaying && !scrubbing) {
+            delay(3000)
+            chrome = false
+        }
+    }
+    LaunchedEffect(playback.ended) { if (playback.ended) chrome = true }
+
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         HorizontalPager(state = pager, beyondViewportPageCount = 1, key = { items[it].key + (items[it].localId ?: 0) }) { page ->
             val item = items[page]
-            if (item.isVideo) VideoPage(item, active = pager.settledPage == page, onTap = { chrome = !chrome })
+            if (item.isVideo) VideoPage(
+                item,
+                active = pager.settledPage == page,
+                onTap = { chrome = !chrome },
+                onPlayer = { activePlayer = it },
+                onPlayerReleased = { if (activePlayer === it) activePlayer = null },
+            )
             else ImagePage(item, onTap = { chrome = !chrome })
+        }
+
+        val player = activePlayer
+        AnimatedVisibility(chrome && videoControls, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.Center)) {
+            Box(
+                Modifier
+                    .size(68.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x66000000))
+                    .clickable {
+                        poke++
+                        val p = player ?: return@clickable
+                        when {
+                            playback.ended -> { p.seekTo(0); p.play() }
+                            p.isPlaying -> p.pause()
+                            else -> p.play()
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    when {
+                        playback.ended -> Icons.Filled.Replay
+                        playback.isPlaying -> Icons.Filled.Pause
+                        else -> Icons.Filled.PlayArrow
+                    },
+                    contentDescription = when {
+                        playback.ended -> "Replay"
+                        playback.isPlaying -> "Pause"
+                        else -> "Play"
+                    },
+                    tint = Color.White,
+                    modifier = Modifier.size(36.dp),
+                )
+            }
         }
 
         AnimatedVisibility(chrome, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.TopCenter)) {
@@ -118,31 +200,59 @@ fun ViewerScreen(
         }
 
         AnimatedVisibility(chrome, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.BottomCenter)) {
-            Row(
+            Column(
                 Modifier
                     .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0x99000000))))
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xB3000000))))
                     .navigationBarsPadding()
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .padding(top = 24.dp),
             ) {
-                RoundIconButton(Icons.Outlined.Share, "Share", tint = Color.White) { actions.share(listOf(current)) }
-                RoundIconButton(Icons.Outlined.Info, "Details", tint = Color.White) { showInfo = true }
-                if (vault) {
-                    RoundIconButton(Icons.Outlined.LockOpen, "Move out of vault", tint = Color.White) {
-                        actions.moveOutOfVault(listOf(current)) { onBack() }
-                    }
-                } else {
-                    when {
-                        current.isCloudOnly -> RoundIconButton(Icons.Outlined.CloudDownload, "Save to device", tint = Color.White) { actions.restore(current) }
-                        current.isBackedUp -> RoundIconButton(Icons.Outlined.CloudDone, "Backed up", tint = Color.White) { actions.toast("Backed up to Telegram") }
-                        else -> RoundIconButton(Icons.Outlined.CloudUpload, "Back up", tint = DarkN.accent) { onBackUp(current); actions.toast("Backing up…") }
-                    }
-                    RoundIconButton(Icons.Outlined.Lock, "Move to vault", tint = Color.White) {
-                        actions.moveToVault(listOf(current)) { onBack() }
+                if (videoControls && player != null) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(formatDuration(playback.position), style = NType.label, color = Color.White)
+                        SeekBar(
+                            position = playback.position,
+                            duration = playback.duration,
+                            onScrub = { scrubbing = it; poke++ },
+                            onSeek = { player.seekTo(it); playback.position = it },
+                            modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
+                        )
+                        Text(formatDuration(playback.duration), style = NType.label, color = Color(0xB3FFFFFF))
                     }
                 }
-                RoundIconButton(Icons.Outlined.Delete, "Delete", tint = Color.White) { confirmDelete = true }
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    RoundIconButton(Icons.Outlined.Share, "Share", tint = Color.White) { actions.share(listOf(current)) }
+                    val fav = current.key in favoriteKeys
+                    RoundIconButton(
+                        if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                        if (fav) "Remove from favorites" else "Add to favorites",
+                        tint = if (fav) DarkN.accent else Color.White,
+                    ) { actions.setFavorite(listOf(current), !fav) }
+                    RoundIconButton(Icons.Outlined.Info, "Details", tint = Color.White) { showInfo = true }
+                    if (vault) {
+                        RoundIconButton(Icons.Outlined.LockOpen, "Move out of vault", tint = Color.White) {
+                            actions.moveOutOfVault(listOf(current)) { onBack() }
+                        }
+                    } else {
+                        when {
+                            current.isCloudOnly -> RoundIconButton(Icons.Outlined.CloudDownload, "Save to device", tint = Color.White) { actions.restore(current) }
+                            current.isBackedUp -> RoundIconButton(Icons.Outlined.CloudDone, "Backed up", tint = Color.White) { actions.toast("Backed up to Telegram") }
+                            else -> RoundIconButton(Icons.Outlined.CloudUpload, "Back up", tint = DarkN.accent) { onBackUp(current); actions.toast("Backing up…") }
+                        }
+                        RoundIconButton(Icons.Outlined.Lock, "Move to vault", tint = Color.White) {
+                            actions.moveToVault(listOf(current)) { onBack() }
+                        }
+                    }
+                    RoundIconButton(Icons.Outlined.Delete, "Delete", tint = Color.White) { confirmDelete = true }
+                }
             }
         }
     }
@@ -250,8 +360,16 @@ private fun ImagePage(item: MediaItem, onTap: () -> Unit) {
     }
 }
 
+/** Video page. Playback controls are drawn by [ViewerScreen], so PlayerView's own controller is off. */
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
-private fun VideoPage(item: MediaItem, active: Boolean, onTap: () -> Unit) {
+private fun VideoPage(
+    item: MediaItem,
+    active: Boolean,
+    onTap: () -> Unit,
+    onPlayer: (ExoPlayer) -> Unit,
+    onPlayerReleased: (ExoPlayer) -> Unit,
+) {
     val context = LocalContext.current
     val (model, progress) = rememberOriginal(item, enabled = active)
     val uri: Uri? = when (model) {
@@ -268,14 +386,120 @@ private fun VideoPage(item: MediaItem, active: Boolean, onTap: () -> Unit) {
                     playWhenReady = true
                 }
             }
-            DisposableEffect(player) { onDispose { player.release() } }
+            DisposableEffect(player) {
+                onPlayer(player)
+                onDispose {
+                    onPlayerReleased(player)
+                    player.release()
+                }
+            }
             AndroidView(
-                factory = { ctx -> PlayerView(ctx).apply { this.player = player; setBackgroundColor(android.graphics.Color.BLACK) } },
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        this.player = player
+                        useController = false
+                        keepScreenOn = true
+                        setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                        setBackgroundColor(android.graphics.Color.BLACK)
+                    }
+                },
                 modifier = Modifier.fillMaxSize(),
+            )
+            // Taps toggle the controls; horizontal swipes still reach the pager.
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onTap),
             )
         } else {
             AsyncImage(item.thumbModel(), item.name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().clickable { onTap() })
             if (active && item.isCloudOnly) DownloadingBadge(progress, Modifier.align(Alignment.Center))
+        }
+    }
+}
+
+/** Playback state of the active video, kept in sync with the player. */
+private class Playback {
+    var isPlaying by mutableStateOf(false)
+    var ended by mutableStateOf(false)
+    var position by mutableLongStateOf(0L)
+    var duration by mutableLongStateOf(0L)
+}
+
+@Composable
+private fun rememberPlayback(player: Player?): Playback {
+    val state = remember(player) { Playback() }
+    if (player == null) return state
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                state.isPlaying = isPlaying
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                state.ended = playbackState == Player.STATE_ENDED
+                if (player.duration > 0) state.duration = player.duration
+            }
+        }
+        player.addListener(listener)
+        state.isPlaying = player.isPlaying
+        onDispose { player.removeListener(listener) }
+    }
+    LaunchedEffect(player) {
+        while (isActive) {
+            state.position = player.currentPosition.coerceAtLeast(0L)
+            if (player.duration > 0) state.duration = player.duration
+            delay(if (state.isPlaying) 200 else 500)
+        }
+    }
+    return state
+}
+
+/** Thin seek bar: tap to jump, drag to scrub (seeks when the finger lifts). */
+@Composable
+private fun SeekBar(
+    position: Long,
+    duration: Long,
+    onScrub: (Boolean) -> Unit,
+    onSeek: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val seek by rememberUpdatedState(onSeek)
+    val scrub by rememberUpdatedState(onScrub)
+    var width by remember { mutableIntStateOf(1) }
+    var dragFraction by remember { mutableStateOf<Float?>(null) }
+    val fraction = dragFraction ?: if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
+    fun at(x: Float) = (x / width).coerceIn(0f, 1f)
+
+    Box(
+        modifier
+            .height(32.dp)
+            .onSizeChanged { width = it.width.coerceAtLeast(1) }
+            .pointerInput(duration) {
+                detectTapGestures { if (duration > 0) seek((at(it.x) * duration).toLong()) }
+            }
+            .pointerInput(duration) {
+                detectHorizontalDragGestures(
+                    onDragStart = { dragFraction = at(it.x); scrub(true) },
+                    onDragEnd = {
+                        dragFraction?.let { if (duration > 0) seek((it * duration).toLong()) }
+                        dragFraction = null
+                        scrub(false)
+                    },
+                    onDragCancel = { dragFraction = null; scrub(false) },
+                ) { change, _ ->
+                    change.consume()
+                    dragFraction = at(change.position.x)
+                }
+            },
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val y = size.height / 2
+            val track = 3.dp.toPx()
+            val x = size.width * fraction
+            drawLine(Color(0x4DFFFFFF), Offset(0f, y), Offset(size.width, y), strokeWidth = track, cap = StrokeCap.Round)
+            drawLine(Color.White, Offset(0f, y), Offset(x, y), strokeWidth = track, cap = StrokeCap.Round)
+            drawCircle(Color.White, radius = (if (dragFraction != null) 8 else 6).dp.toPx(), center = Offset(x, y))
         }
     }
 }
@@ -299,8 +523,15 @@ private fun DownloadingBadge(progress: Float, modifier: Modifier) {
 @Composable
 private fun rememberOriginal(item: MediaItem, enabled: Boolean = true): Pair<Any?, Float> {
     if (item.uri != null) return item.uri to 1f
+    val app = App.get(LocalContext.current)
+    if (item.vaultPath != null) {
+        val plain by produceState<File?>(null, item.vaultPath, enabled) {
+            if (enabled) value = runCatching { app.vault.openPlain(item.vaultPath) }.getOrNull()
+        }
+        return plain to if (plain != null) 1f else 0f
+    }
     val cloud = item.cloud ?: return null to 0f
-    val tg = App.get(LocalContext.current).telegram
+    val tg = app.telegram
     var progress by remember(cloud.fileId) { mutableFloatStateOf(0f) }
     LaunchedEffect(cloud.fileId, enabled) {
         if (!enabled) return@LaunchedEffect

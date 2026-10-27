@@ -35,6 +35,7 @@ import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Photo
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
@@ -120,6 +121,7 @@ fun SelectionBar(
     onBackup: () -> Unit,
     onDelete: () -> Unit,
     onVault: () -> Unit,
+    onFavorite: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -138,6 +140,7 @@ fun SelectionBar(
         Text("$count", style = NType.labelLarge, color = n.text, modifier = Modifier.padding(horizontal = 8.dp))
         RoundIconButton(Icons.Outlined.Share, "Share", size = 52.dp, onClick = onShare)
         RoundIconButton(Icons.Outlined.CloudUpload, "Back up", size = 52.dp, onClick = onBackup)
+        RoundIconButton(Icons.Outlined.FavoriteBorder, "Add to favorites", size = 52.dp, onClick = onFavorite)
         RoundIconButton(Icons.Outlined.Lock, "Move to vault", size = 52.dp, onClick = onVault)
         RoundIconButton(Icons.Outlined.Delete, "Delete", size = 52.dp, tint = n.accent, onClick = onDelete)
     }

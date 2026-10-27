@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -122,7 +123,11 @@ private fun AlbumThumb(album: Album, modifier: Modifier) {
             AsyncImage(model, album.name, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         } else {
             Icon(
-                if (album.id == GalleryViewModel.CLOUD_ID || album.id == GalleryViewModel.BACKED_UP_ID) Icons.Outlined.Cloud else Icons.Outlined.PhotoLibrary,
+                when (album.id) {
+                    GalleryViewModel.CLOUD_ID, GalleryViewModel.BACKED_UP_ID -> Icons.Outlined.Cloud
+                    GalleryViewModel.FAVORITES_ID -> Icons.Outlined.FavoriteBorder
+                    else -> Icons.Outlined.PhotoLibrary
+                },
                 null, tint = n.textTertiary, modifier = Modifier.size(32.dp),
             )
         }

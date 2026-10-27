@@ -79,21 +79,21 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
     /** Device items with their backup attached, plus backups no longer on the device. */
     private val cloudFlow = app.db.dao().observeAll()
 
-    val all: StateFlow<List<MediaItem>> = combine(local, cloudFlow, app.vault.entries) { loc, cloud, vault ->
+    val all: StateFlow<List<MediaItem>> = combine(local, cloudFlow, app.vault.entries, prefs.appFavorites) { loc, cloud, vault, appFav ->
         val byKey = cloud.associateBy { it.key }
         // Vault keys are treated as "already seen" so hidden items never show in the gallery.
         val localKeys = HashSet<String>(loc.size + vault.size)
         vault.forEach { localKeys += it.key }
         val merged = ArrayList<MediaItem>(loc.size + cloud.size)
         loc.forEach { if (it.key !in localKeys) { localKeys += it.key; merged += it.copy(cloud = byKey[it.key]) } }
-        cloud.forEach { if (it.key !in localKeys) { localKeys += it.key; merged += MediaItem.fromCloud(it) } }
+        cloud.forEach { if (it.key !in localKeys) { localKeys += it.key; merged += MediaItem.fromCloud(it).copy(favorite = it.key in appFav) } }
         merged.sortByDescending { it.dateTaken }
         merged as List<MediaItem>
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val vaultItems: StateFlow<List<MediaItem>> = combine(app.vault.entries, cloudFlow) { vault, cloud ->
+    val vaultItems: StateFlow<List<MediaItem>> = combine(app.vault.entries, cloudFlow, prefs.appFavorites) { vault, cloud, appFav ->
         val byKey = cloud.associateBy { it.key }
-        vault.map { it.toMediaItem(byKey[it.key]) }
+        vault.map { it.toMediaItem(byKey[it.key]).copy(favorite = it.key in appFav) }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _vaultUnlocked = MutableStateFlow(false)
@@ -104,9 +104,20 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
     fun lockVault() {
         if (!_vaultUnlocked.value) return
         _vaultUnlocked.value = false
+        // Forget everything decrypted: temp files and thumbnails held in memory.
+        app.vault.wipePlain()
+        coil3.SingletonImageLoader.get(getApplication()).memoryCache?.clear()
         val firstVault = _stack.value.indexOfFirst { it is Screen.Vault || (it is Screen.Viewer && it.vault) }
         if (firstVault > 0) _stack.value = _stack.value.take(firstVault)
     }
+
+    /** Live favorite state (the viewer's list is a snapshot, so it asks here). */
+    val favoriteKeys: StateFlow<Set<String>> = combine(all, prefs.appFavorites, app.vault.entries) { items, appFav, _ ->
+        // Device items follow Android's flag (so changes made in other gallery apps show here);
+        // the app's own list only counts for items that aren't on the device.
+        val onDevice = items.filter { it.isLocal }.mapTo(HashSet()) { it.key }
+        items.filter { it.favorite }.mapTo(HashSet()) { it.key } + appFav.filter { it !in onDevice }
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
     val timeline: StateFlow<Timeline> = all.map { Timeline(it, group(it)) }
         .flowOn(Dispatchers.Default)
@@ -292,6 +303,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         val videos = local.filter { it.isVideo }
         val cloudOnly = items.filter { it.isCloudOnly }
         val virtual = buildList {
+            add(Album(FAVORITES_ID, "Favorites", items.filter { it.favorite }, pinned = true))
             add(Album(BACKED_UP_ID, "Backed up", items.filter { it.isBackedUp }, pinned = true))
             if (videos.isNotEmpty()) add(Album(VIDEOS_ID, "Videos", videos, pinned = true))
             add(Album(CLOUD_ID, "Telegram only", cloudOnly, pinned = true))
@@ -304,6 +316,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         const val VIDEOS_ID = "__videos"
         const val CLOUD_ID = "__cloud"
         const val BACKED_UP_ID = "__backed_up"
+        const val FAVORITES_ID = "__favorites"
 
         fun group(items: List<MediaItem>): List<GridEntry> {
             val out = ArrayList<GridEntry>(items.size + items.size / 8)

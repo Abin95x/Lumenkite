@@ -42,6 +42,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.repeatOnLifecycle
 import com.skyroll.app.BuildConfig
 import com.skyroll.app.data.Prefs
 import com.skyroll.app.ui.components.RoundIconButton
@@ -52,7 +53,7 @@ import com.skyroll.app.ui.theme.NType
 import com.skyroll.app.ui.components.Gutter
 import com.skyroll.app.ui.theme.ThemeToggleButton
 
-/** Your Buy Me a Coffee page, e.g. "https://buymeacoffee.com/yourname". */
+/** Support link shown in Settings. */
 const val BUY_ME_A_COFFEE_URL = "https://buymeacoffee.com/abin95x"
 
 @Composable
@@ -78,6 +79,39 @@ fun SettingsScreen(prefs: Prefs, onBack: () -> Unit) {
 
             SectionLabel("Appearance")
             AppearancePicker(prefs)
+
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                SectionLabel("Favorites", Modifier.padding(top = 24.dp))
+                var allowed by remember { mutableStateOf(android.provider.MediaStore.canManageMedia(context)) }
+                // Re-check when coming back from Android's settings page.
+                val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+                androidx.compose.runtime.LaunchedEffect(lifecycle) {
+                    lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                        allowed = android.provider.MediaStore.canManageMedia(context)
+                    }
+                }
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !allowed) {
+                            context.startActivity(
+                                Intent(android.provider.Settings.ACTION_REQUEST_MANAGE_MEDIA, Uri.parse("package:${context.packageName}"))
+                            )
+                        }
+                        .padding(horizontal = Gutter, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("One-tap favorites", style = NType.body, color = n.text)
+                        Text(
+                            if (allowed) "On · favorites sync with your phone's gallery without asking"
+                            else "Android asks to confirm each favorite. Tap to allow \"Media management\" so it doesn't.",
+                            style = NType.label, color = n.textTertiary,
+                        )
+                    }
+                    if (!allowed) Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, tint = n.textSecondary, modifier = Modifier.size(20.dp))
+                }
+            }
 
             SectionLabel("Support", Modifier.padding(top = 24.dp))
             Row(

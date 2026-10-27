@@ -2,6 +2,7 @@ package com.skyroll.app.ui.screens
 
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
@@ -35,7 +36,9 @@ import com.skyroll.app.ui.components.Gutter
 
 /** Asks for fingerprint / face / screen lock. Calls [onFail] with a reason if it can't. */
 fun authenticateVault(activity: FragmentActivity, onSuccess: () -> Unit, onFail: (String) -> Unit) {
-    val allowed = BIOMETRIC_WEAK or DEVICE_CREDENTIAL
+    // Strong biometrics (fingerprint / secure face) or the screen lock. Android 10 can't combine
+    // "strong" with screen lock, so it falls back to the system's default there.
+    val allowed = if (android.os.Build.VERSION.SDK_INT >= 30) BIOMETRIC_STRONG or DEVICE_CREDENTIAL else BIOMETRIC_WEAK or DEVICE_CREDENTIAL
     when (BiometricManager.from(activity).canAuthenticate(allowed)) {
         BiometricManager.BIOMETRIC_SUCCESS -> Unit
         BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> { onFail("Set a screen lock in Settings to use the vault"); return }

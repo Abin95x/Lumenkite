@@ -34,6 +34,10 @@ class MediaRepository(private val context: Context) {
         awaitClose { cr.unregisterContentObserver(observer) }
     }
 
+    /** Sets Android's shared favorite flag. Returns a request the user may need to confirm. */
+    fun favoriteRequest(uris: List<Uri>, favorite: Boolean) =
+        MediaStore.createFavoriteRequest(context.contentResolver, uris, favorite)
+
     suspend fun queryAll(): List<MediaItem> = withContext(Dispatchers.IO) {
         val projection = arrayOf(
             MediaStore.Files.FileColumns._ID,
@@ -50,7 +54,7 @@ class MediaRepository(private val context: Context) {
             MediaStore.MediaColumns.WIDTH,
             MediaStore.MediaColumns.HEIGHT,
             MediaStore.MediaColumns.DATA,
-        )
+        ) + if (android.os.Build.VERSION.SDK_INT >= 30) arrayOf(MediaStore.MediaColumns.IS_FAVORITE) else emptyArray()
         val selection = "(${MediaStore.Files.FileColumns.MEDIA_TYPE}=? OR ${MediaStore.Files.FileColumns.MEDIA_TYPE}=?)" +
             " AND ${MediaStore.MediaColumns.SIZE}>0"
         val args = arrayOf(
@@ -73,6 +77,7 @@ class MediaRepository(private val context: Context) {
             val iW = c.getColumnIndexOrThrow(projection[11])
             val iH = c.getColumnIndexOrThrow(projection[12])
             val iData = c.getColumnIndexOrThrow(projection[13])
+            val iFav = if (projection.size > 14) c.getColumnIndex(projection[14]) else -1
             while (c.moveToNext()) {
                 val id = c.getLong(iId)
                 val isVideo = c.getInt(iType) == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO
@@ -95,6 +100,7 @@ class MediaRepository(private val context: Context) {
                     width = c.getInt(iW),
                     height = c.getInt(iH),
                     path = c.getString(iData),
+                    favorite = iFav >= 0 && c.getInt(iFav) == 1,
                 )
             }
         }
@@ -111,20 +117,26 @@ class MediaRepository(private val context: Context) {
             MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         }
         val fallback = if (isVideo) "Movies/Restored/" else "Pictures/Restored/"
-        val paths = listOfNotNull(item.relativePath?.takeIf { it.startsWith("DCIM/") || it.startsWith("Pictures/") || it.startsWith("Movies/") }, fallback)
+        val paths = listOfNotNull(com.skyroll.app.security.Secrets.safeRelativePath(item.relativePath), fallback)
+        val safeName = com.skyroll.app.security.Secrets.safeFileName(item.name, "restored")
         var lastError: Exception? = null
         for (rel in paths) {
             try {
                 val values = ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, item.name)
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, safeName)
                     put(MediaStore.MediaColumns.MIME_TYPE, item.mime)
                     put(MediaStore.MediaColumns.RELATIVE_PATH, rel)
                     put(MediaStore.MediaColumns.DATE_TAKEN, item.dateTaken)
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
                 }
                 val uri = context.contentResolver.insert(collection, values) ?: error("Could not create file")
-                context.contentResolver.openOutputStream(uri)!!.use { out ->
-                    file.inputStream().use { it.copyTo(out, 1 shl 16) }
+                try {
+                    context.contentResolver.openOutputStream(uri)!!.use { out ->
+                        file.inputStream().use { it.copyTo(out, 1 shl 16) }
+                    }
+                } catch (e: Exception) {
+                    context.contentResolver.delete(uri, null, null) // don't leave a broken half-file behind
+                    throw e
                 }
                 context.contentResolver.update(uri, ContentValues().apply {
                     put(MediaStore.MediaColumns.IS_PENDING, 0)

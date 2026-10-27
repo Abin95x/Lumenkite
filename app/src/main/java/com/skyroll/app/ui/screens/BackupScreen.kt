@@ -112,6 +112,7 @@ private fun MissingKeys() {
 
 @Composable
 private fun LoginFlow(tg: TelegramClient, auth: Auth) {
+    SecureWindow() // no screenshots/recordings of login codes or passwords
     val n = LocalN.current
     val scope = rememberCoroutineScope()
     var input by remember(auth) { mutableStateOf("") }
@@ -357,7 +358,13 @@ private fun StatusCard(state: BackupState, backedUp: Int, total: Int, cloudCount
                 total > 0 && backedUp == total -> "Everything is backed up"
                 else -> "${total - backedUp} waiting"
             }
-            Text(line, style = NType.body, color = n.textSecondary)
+            // Each line stays on one row (long file names end in "…"), digits fixed-width so nothing jumps.
+            line.lines().forEach { l ->
+                Text(
+                    l, style = NType.body.copy(fontFeatureSettings = "tnum"), color = n.textSecondary,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+            }
             if (state.running) {
                 Spacer(Modifier.height(8.dp))
                 DotProgress(state.currentProgress, dots = 40)

@@ -24,6 +24,10 @@ data class MediaItem(
     val cloud: CloudItem? = null,
     /** Set when the item is hidden in the vault (private app storage). */
     val vaultPath: String? = null,
+    /** Encrypted grid thumbnail for vault items. */
+    val vaultThumb: String? = null,
+    /** Android's shared favorite flag (local items) or the app's own list (Telegram-only items). */
+    val favorite: Boolean = false,
 ) {
     val isVideo: Boolean get() = mime.startsWith("video")
     val isLocal: Boolean get() = localId != null

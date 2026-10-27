@@ -165,6 +165,7 @@ private fun Gallery(vm: GalleryViewModel) {
     val selection by vm.selection.collectAsState()
     val backup by vm.backupState.collectAsState()
     val vaultItems by vm.vaultItems.collectAsState()
+    val favoriteKeys by vm.favoriteKeys.collectAsState()
     val exploreData by vm.explore.collectAsState()
     val scanState by vm.scanState.collectAsState()
     val query by vm.query.collectAsState()
@@ -248,6 +249,7 @@ private fun Gallery(vm: GalleryViewModel) {
                     onBackUp = { vm.backUpNow(listOf(it.key)) },
                     onBack = { vm.pop() },
                     vault = s.vault,
+                    favoriteKeys = favoriteKeys,
                 )
                 is Screen.Collection -> {
                     var title by remember(s) { mutableStateOf(s.title) }
@@ -317,6 +319,11 @@ private fun Gallery(vm: GalleryViewModel) {
                 },
                 onDelete = { confirmDelete = true },
                 onVault = { actions.moveToVault(vm.selectedItems()) { vm.clearSelection() } },
+                onFavorite = {
+                    val items = vm.selectedItems()
+                    // If everything is already a favorite, the button removes them instead.
+                    actions.setFavorite(items, !items.all { it.favorite }) { vm.clearSelection() }
+                },
                 onClose = vm::clearSelection,
             )
         }

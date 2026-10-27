@@ -63,6 +63,15 @@ class Prefs(context: Context) {
         _themeMode.value = mode
     }
 
+    private val _appFavorites = MutableStateFlow(sp.getStringSet("app_favorites", emptySet())!!.toSet())
+    /** Favorites for items not on the device (Android's flag only works for device files). */
+    val appFavorites: StateFlow<Set<String>> = _appFavorites.asStateFlow()
+    fun setAppFavorite(keys: Collection<String>, favorite: Boolean) {
+        val s = if (favorite) _appFavorites.value + keys else _appFavorites.value - keys.toSet()
+        sp.edit().putStringSet("app_favorites", s).apply()
+        _appFavorites.value = s
+    }
+
     var gridColumns: Int
         get() = sp.getInt("grid_columns", 4)
         set(v) = sp.edit().putInt("grid_columns", v).apply()

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <files-path name="tdlib" path="tdlib/files/" />
-    <files-path name="vault" path="vault/" />
-    <cache-path name="cache" path="." />
+    <!-- Only the short-lived decrypted vault copies are shareable, never the encrypted store. -->
+    <cache-path name="vault_open" path="vault_open/" />
 </paths>

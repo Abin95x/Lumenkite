@@ -1,6 +1,7 @@
 package com.skyroll.app
 
 import android.app.Application
+import kotlinx.coroutines.launch
 import android.content.Context
 import coil3.ImageLoader
 import coil3.PlatformContext
@@ -22,13 +23,16 @@ class App : Application(), SingletonImageLoader.Factory {
     val prefs by lazy { Prefs(this) }
     val db by lazy { CloudDb.create(this) }
     val media by lazy { MediaRepository(this) }
-    val telegram by lazy { TelegramClient(this, db.dao(), prefs) }
+    val telegram by lazy { TelegramClient(this, db.dao(), prefs, secrets) }
     val explore by lazy { com.skyroll.app.explore.ExploreDb.create(this) }
-    val vault by lazy { com.skyroll.app.data.VaultRepository(this, telegram) }
+    val secrets by lazy { com.skyroll.app.security.Secrets(this) }
+    val vault by lazy { com.skyroll.app.data.VaultRepository(this, telegram, secrets) }
+    val appScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
         BackupScheduler.createChannel(this)
+        appScope.launch { vault.init() }
         telegram.start()
         BackupScheduler.schedule(this)
         com.skyroll.app.explore.ExploreScheduler.schedule(this)
@@ -43,6 +47,8 @@ class App : Application(), SingletonImageLoader.Factory {
                 add(TgThumbKeyer())
                 add(com.skyroll.app.data.FaceThumbFetcher.Factory())
                 add(com.skyroll.app.data.FaceThumbKeyer())
+                add(com.skyroll.app.data.VaultThumbFetcher.Factory(vault))
+                add(com.skyroll.app.data.VaultThumbKeyer())
                 add(VideoFrameDecoder.Factory())
             }
             .memoryCache { MemoryCache.Builder().maxSizePercent(context, 0.25).build() }

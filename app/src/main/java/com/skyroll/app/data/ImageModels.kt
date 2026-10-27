@@ -23,7 +23,7 @@ data class DeviceThumb(val uri: Uri)
 data class TgThumb(val fileId: Int)
 
 fun MediaItem.thumbModel(): Any? = when {
-    vaultPath != null -> java.io.File(vaultPath)
+    vaultPath != null -> vaultThumb?.let { VaultThumb(it) }
     uri != null -> DeviceThumb(uri)
     cloud != null && cloud.thumbFileId != 0 -> TgThumb(cloud.thumbFileId)
     else -> null
@@ -93,4 +93,26 @@ class FaceThumbFetcher(private val data: FaceThumb, private val options: Options
 
 class FaceThumbKeyer : Keyer<FaceThumb> {
     override fun key(data: FaceThumb, options: Options) = "face:${data.uri}:${data.left}:${data.top}"
+}
+
+/** Encrypted vault thumbnail; decrypted into memory only. */
+data class VaultThumb(val path: String)
+
+class VaultThumbFetcher(private val data: VaultThumb, private val vault: VaultRepository) : Fetcher {
+    override suspend fun fetch(): FetchResult {
+        val bytes = vault.thumbBytes(data.path)
+        return SourceFetchResult(
+            source = ImageSource(okio.Buffer().write(bytes), FileSystem.SYSTEM),
+            mimeType = "image/jpeg",
+            dataSource = DataSource.DISK,
+        )
+    }
+
+    class Factory(private val vault: VaultRepository) : Fetcher.Factory<VaultThumb> {
+        override fun create(data: VaultThumb, options: Options, imageLoader: ImageLoader) = VaultThumbFetcher(data, vault)
+    }
+}
+
+class VaultThumbKeyer : Keyer<VaultThumb> {
+    override fun key(data: VaultThumb, options: Options) = "vault:${data.path}"
 }

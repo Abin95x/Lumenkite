@@ -42,6 +42,7 @@ class TelegramClient(
     private val context: Context,
     private val dao: CloudDao,
     private val prefs: Prefs,
+    private val secrets: com.skyroll.app.security.Secrets,
 ) {
     sealed interface Auth {
         data object Loading : Auth
@@ -160,13 +161,48 @@ class TelegramClient(
         }
     }
 
+    /** True while the Telegram database is still unencrypted (older installs); fixed once logged in. */
+    @Volatile private var dbKeyIsEmpty = false
+
+    /**
+     * Opens the Telegram database with its encryption key (kept in the hardware keystore).
+     * Tries the saved key, then a key that was being switched to, then "no key" for old installs.
+     */
     private suspend fun sendParameters() {
         val root = File(context.filesDir, "tdlib")
-        val params = TdApi.SetTdlibParameters().apply {
+        for (key in secrets.tdlibKeyCandidates()) {
+            val ok = runCatching { send(parameters(root, key)) }.isSuccess
+            if (ok) {
+                dbKeyIsEmpty = key.isEmpty()
+                if (!dbKeyIsEmpty) secrets.confirmTdlibKey(key)
+                return
+            }
+        }
+        // No key opens it (e.g. keystore was reset): start a fresh, encrypted session. Backups are
+        // safe on Telegram; the user just signs in again.
+        Log.e(TAG, "Telegram database could not be unlocked; resetting session")
+        File(root, "db").deleteRecursively()
+        val fresh = secrets.newTdlibKey()
+        runCatching { send(parameters(root, fresh)) }
+            .onSuccess { secrets.confirmTdlibKey(fresh); dbKeyIsEmpty = false }
+            .onFailure { Log.e(TAG, "setTdlibParameters", it) }
+    }
+
+    /** Re-encrypts an old unencrypted Telegram database with a new random key. */
+    private suspend fun encryptDatabaseIfNeeded() {
+        if (!dbKeyIsEmpty) return
+        val key = secrets.newTdlibKey()
+        runCatching { send(TdApi.SetDatabaseEncryptionKey(key)) }
+            .onSuccess { secrets.confirmTdlibKey(key); dbKeyIsEmpty = false }
+            .onFailure { Log.e(TAG, "setDatabaseEncryptionKey", it) }
+    }
+
+    private fun parameters(root: File, key: ByteArray) =
+        TdApi.SetTdlibParameters().apply {
             useTestDc = false
             databaseDirectory = File(root, "db").absolutePath
             filesDirectory = File(root, "files").absolutePath
-            databaseEncryptionKey = ByteArray(0)
+            databaseEncryptionKey = key
             useFileDatabase = true
             useChatInfoDatabase = true
             useMessageDatabase = true
@@ -178,8 +214,6 @@ class TelegramClient(
             systemVersion = "Android ${Build.VERSION.RELEASE}"
             applicationVersion = BuildConfig.VERSION_NAME
         }
-        runCatching { send(params) }.onFailure { Log.e(TAG, "setTdlibParameters", it) }
-    }
 
     private suspend fun forgetSession() {
         prefs.backupChatId = 0
@@ -189,6 +223,7 @@ class TelegramClient(
     }
 
     private suspend fun onReady() {
+        encryptDatabaseIfNeeded()
         runCatching {
             val me = send(TdApi.GetMe())
             _account.value = Account(

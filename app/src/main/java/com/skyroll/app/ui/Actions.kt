@@ -36,7 +36,7 @@ class GalleryActions(
             val uris = ArrayList<Uri>()
             for (item in items) {
                 val uri = if (item.vaultPath != null) {
-                    FileProvider.getUriForFile(context, "${context.packageName}.files", java.io.File(item.vaultPath))
+                    FileProvider.getUriForFile(context, "${context.packageName}.files", app.vault.openPlain(item.vaultPath))
                 } else item.uri ?: runCatching {
                     val f = app.telegram.download(item.cloud!!.fileId, 32)
                     FileProvider.getUriForFile(context, "${context.packageName}.files", f)
@@ -92,6 +92,26 @@ class GalleryActions(
         }
     }
 
+    // ------------------------------------------------------------ favorites
+
+    /**
+     * Device photos use Android's shared favorite flag (also shown in other gallery apps);
+     * Android may ask to confirm unless "Media management" is allowed in Settings.
+     * Telegram-only and vault items are kept in the app's own list.
+     */
+    fun setFavorite(items: List<MediaItem>, favorite: Boolean, after: () -> Unit = {}) {
+        val local = items.filter { it.isLocal && it.uri != null }
+        val others = items.filter { !it.isLocal }
+        if (others.isNotEmpty()) app.prefs.setAppFavorite(others.map { it.key }, favorite)
+        // Keep the app list in step for device items too, so a favorite survives "free up space".
+        app.prefs.setAppFavorite(local.map { it.key }, favorite)
+        if (local.isEmpty()) { after(); return }
+        val pi = app.media.favoriteRequest(local.map { it.uri!! }, favorite)
+        pendingAfterDelete[0] = after
+        pendingCancel[0] = { app.prefs.setAppFavorite(local.map { it.key }, !favorite) }
+        deleteLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+    }
+
     // ------------------------------------------------------------ vault
 
     /** Copies items into the vault, then removes the gallery copies (system confirms). */
@@ -126,7 +146,10 @@ class GalleryActions(
             val done = ArrayList<String>()
             for (item in items) {
                 val path = item.vaultPath ?: continue
-                runCatching { app.media.restore(java.io.File(path), item) }
+                runCatching {
+                    val plain = app.vault.openPlain(path)
+                    try { app.media.restore(plain, item) } finally { plain.delete() }
+                }
                     .onSuccess { done += path }
                     .onFailure { toast("Couldn't restore ${item.name}: ${it.message}") }
             }

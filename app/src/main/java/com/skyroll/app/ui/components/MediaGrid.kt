@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.CloudQueue
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -160,6 +161,12 @@ fun Tile(
                 .scale(s)
                 .then(if (selected) Modifier.clip(RoundedCornerShape(10.dp)) else Modifier),
         )
+        if (item.favorite && !compact && !selecting) {
+            Icon(
+                Icons.Filled.Favorite, "Favorite", tint = Color.White,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp).size(16.dp),
+            )
+        }
         if (item.isVideo && !compact) {
             Row(
                 Modifier

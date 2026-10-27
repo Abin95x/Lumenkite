@@ -179,17 +179,21 @@ private fun Overview(
                     Card {
                         Column {
                             if (scan.running) {
-                                Text("Organizing your photos", style = NType.title, color = n.text)
+                                Text("Organizing your photos", style = NType.title, color = n.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Spacer(Modifier.height(4.dp))
                                 Text(
                                     if (scan.total > 0) "%,d of %,d · runs on your phone, nothing is uploaded".format(scan.done, scan.total)
                                     else "Getting ready…",
-                                    style = NType.body, color = n.textSecondary,
+                                    // One line, fixed-width digits: the card no longer jumps as the count changes.
+                                    style = NType.body.copy(fontFeatureSettings = "tnum"),
+                                    color = n.textSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                                 Spacer(Modifier.height(12.dp))
                                 DotProgress(if (scan.total == 0) 0f else scan.done.toFloat() / scan.total)
                             } else {
-                                Text("Find people, places and things", style = NType.title, color = n.text)
+                                Text("Find people, places and things", style = NType.title, color = n.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Spacer(Modifier.height(4.dp))
                                 Text(
                                     "Lumenkite looks at your photos on this phone to group faces, read text and sort them into categories. Free, offline and private.",
