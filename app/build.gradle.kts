@@ -14,6 +14,12 @@ val localProps = Properties().apply {
 val tgApiId = localProps.getProperty("telegram.apiId", "0").trim().ifEmpty { "0" }
 val tgApiHash = localProps.getProperty("telegram.apiHash", "").trim()
 
+// Release signing key, kept out of git in keystore.properties (see README > Releasing).
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
 android {
     namespace = "com.skyroll.app"
     compileSdk = 35
@@ -31,13 +37,24 @@ android {
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
+    signingConfigs {
+        if (keystoreProps.getProperty("storeFile") != null) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Signed with the debug key so it installs directly; replace for Play Store.
-            signingConfig = signingConfigs.getByName("debug")
+            // Uses the release key when keystore.properties exists, otherwise the debug key.
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

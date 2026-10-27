@@ -21,6 +21,7 @@
 ## Contents
 
 - [Why Lumenkite](#why-lumenkite)
+- [Screenshots](#screenshots)
 - [Features](#features)
 - [Install and use](#install-and-use)
 - [How backup works](#how-backup-works)
@@ -38,6 +39,15 @@ Cloud photo storage usually means a monthly bill or compressed photos. Telegram 
 unlimited cloud storage for files. Lumenkite turns that into a photo backup: your originals go to a
 private channel in **your own** Telegram account, in full quality, at no cost.
 There's no Lumenkite server and no Lumenkite account.
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/welcome.jpg" width="23%" alt="Welcome screen asking for photo access">
+  <img src="docs/screenshots/photos.jpg" width="23%" alt="Photos tab">
+  <img src="docs/screenshots/explore.jpg" width="23%" alt="Explore tab with on-device search">
+  <img src="docs/screenshots/backup.jpg" width="23%" alt="Backup tab with Telegram backup status and settings">
+</p>
 
 ## Features
 
